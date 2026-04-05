@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(claude-api)",
+      "Bash(python3 -c ':*)",
+      "Bash(pip install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(python -c ':*)",
+      "Bash(curl -s \"http://api.openweathermap.org/geo/1.0/direct?q=Paris&limit=1&appid=cb397c569e5dda6e5d8dffd91492b2ca\")"
+    ]
+  }
+}
