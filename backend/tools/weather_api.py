@@ -6,10 +6,13 @@ Endpoint selection by trip distance from today:
   <= 8 days  : daily forecast   (/onecall, daily array, 8 days max)
   >  8 days  : day summary      (/onecall/day_summary, per-day call, up to ~1.5 yrs)
 """
+import logging
 import os
 import requests
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "")
 GEOCODING_URL  = "http://api.openweathermap.org/geo/1.0/direct"
@@ -22,6 +25,7 @@ DAY_SUMMARY_URL = "https://api.openweathermap.org/data/3.0/onecall/day_summary"
 # ---------------------------------------------------------------------------
 
 def _get_coords(city: str) -> tuple[float, float]:
+    logger.info("Geocoding city: %s", city)
     resp = requests.get(
         GEOCODING_URL,
         params={"q": city, "limit": 1, "appid": OPENWEATHER_API_KEY},
@@ -30,8 +34,11 @@ def _get_coords(city: str) -> tuple[float, float]:
     resp.raise_for_status()
     data = resp.json()
     if not data:
+        logger.warning("City not found in geocoding response: %s", city)
         raise ValueError(f"City not found: {city}")
-    return data[0]["lat"], data[0]["lon"]
+    lat, lon = data[0]["lat"], data[0]["lon"]
+    logger.info("Resolved %s -> lat=%.4f, lon=%.4f", city, lat, lon)
+    return lat, lon
 
 
 def _uv_risk(uvi: float) -> str:
@@ -69,6 +76,7 @@ def _date_range(start_date: str, end_date: str) -> list[date]:
 # ---------------------------------------------------------------------------
 
 def _fetch_hourly(lat: float, lon: float, d_start: date, d_end: date) -> list[dict]:
+    logger.info("Fetching hourly forecast for lat=%.4f lon=%.4f, %s to %s", lat, lon, d_start, d_end)
     resp = requests.get(
         ONECALL_URL,
         params={"lat": lat, "lon": lon, "exclude": "current,minutely,daily,alerts",
@@ -77,6 +85,7 @@ def _fetch_hourly(lat: float, lon: float, d_start: date, d_end: date) -> list[di
     )
     resp.raise_for_status()
     hourly = resp.json().get("hourly", [])
+    logger.debug("Hourly response: %d data points received", len(hourly))
 
     # Group hours by date
     by_date: dict[date, list[dict]] = {}
@@ -128,6 +137,7 @@ def _fetch_hourly(lat: float, lon: float, d_start: date, d_end: date) -> list[di
 # ---------------------------------------------------------------------------
 
 def _fetch_daily(lat: float, lon: float, d_start: date, d_end: date) -> tuple[list[dict], dict]:
+    logger.info("Fetching daily forecast for lat=%.4f lon=%.4f, %s to %s", lat, lon, d_start, d_end)
     resp = requests.get(
         ONECALL_URL,
         params={"lat": lat, "lon": lon, "exclude": "current,minutely,hourly,alerts",
@@ -136,6 +146,7 @@ def _fetch_daily(lat: float, lon: float, d_start: date, d_end: date) -> tuple[li
     )
     resp.raise_for_status()
     data = resp.json()
+    logger.debug("Daily response: %d day(s) received", len(data.get("daily", [])))
 
     daily_forecast = []
     for day in data.get("daily", []):
@@ -170,9 +181,11 @@ def _fetch_daily(lat: float, lon: float, d_start: date, d_end: date) -> tuple[li
 # ---------------------------------------------------------------------------
 
 def _fetch_day_summary(lat: float, lon: float, days: list[date]) -> list[dict]:
+    logger.info("Fetching long-term day summaries for lat=%.4f lon=%.4f, %d day(s)", lat, lon, len(days))
     daily_forecast = []
     for d in days:
         try:
+            logger.debug("Fetching day summary for %s", d)
             resp = requests.get(
                 DAY_SUMMARY_URL,
                 params={"lat": lat, "lon": lon, "date": str(d),
@@ -195,8 +208,8 @@ def _fetch_day_summary(lat: float, lon: float, days: list[date]) -> list[dict]:
                 "clouds_pct": s.get("cloud_cover", {}).get("afternoon", 0),
                 "pressure_hpa": s.get("pressure", {}).get("afternoon", 0),
             })
-        except Exception:
-            pass  # skip days that fail; caller will still get partial results
+        except Exception as exc:
+            logger.warning("Day summary failed for %s: %s", d, exc)
     return daily_forecast
 
 
@@ -206,35 +219,53 @@ def _fetch_day_summary(lat: float, lon: float, days: list[date]) -> list[dict]:
 
 def get_weather(city: str, start_date: str, end_date: str) -> dict[str, Any]:
     """Get weather forecast using the best-fit OpenWeatherMap One Call 3.0 endpoint."""
+    logger.info("get_weather called: city=%s, start=%s, end=%s", city, start_date, end_date)
+
     if not OPENWEATHER_API_KEY:
+        logger.error("OPENWEATHER_API_KEY is not set")
         return {"status": "error", "message": "OPENWEATHER_API_KEY not configured"}
 
     try:
         lat, lon = _get_coords(city)
     except Exception as e:
+        logger.error("Geocoding failed for city=%s: %s", city, e)
         return {"status": "error", "message": f"Geocoding failed: {e}"}
 
     days      = _date_range(start_date, end_date)
     today     = date.today()
     days_ahead = (days[0] - today).days   # how far the trip start is from today
+    logger.info("Trip starts in %d day(s), covering %d day(s) total", days_ahead, len(days))
+
+    if days_ahead < 0:
+        logger.warning("Trip start date %s is in the past (%d days ago)", days[0], -days_ahead)
+        return {
+            "status": "error",
+            "message": f"Trip start date {days[0]} is in the past. Please provide a future date.",
+        }
 
     # Choose strategy
     try:
         if days_ahead <= 2:
             forecast_type  = "hourly (48-hour detail)"
+            logger.info("Strategy: hourly forecast")
             d_start, d_end = days[0], days[-1]
             daily_forecast = _fetch_hourly(lat, lon, d_start, d_end)
             current        = {}
         elif days_ahead <= 8:
             forecast_type  = "daily (8-day forecast)"
+            logger.info("Strategy: daily forecast")
             d_start, d_end = days[0], days[-1]
             daily_forecast, current = _fetch_daily(lat, lon, d_start, d_end)
         else:
             forecast_type  = "long-term day summary (up to 1.5 years)"
+            logger.info("Strategy: long-term day summary")
             daily_forecast = _fetch_day_summary(lat, lon, days)
             current        = {}
     except Exception as e:
+        logger.error("Weather fetch failed: %s", e, exc_info=True)
         return {"status": "error", "message": f"Weather fetch failed: {e}"}
+
+    logger.info("Weather fetch complete: %d day(s) of forecast returned", len(daily_forecast))
 
     # Aggregate stats across all forecast days
     temp_highs    = [d["temp_high_c"] for d in daily_forecast if "temp_high_c" in d]

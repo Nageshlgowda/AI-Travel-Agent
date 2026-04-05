@@ -6,14 +6,20 @@ Uses claude-haiku-4-5 for fast, focused extraction.
 import json
 import sys
 import os
+from datetime import date
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import anthropic
 from models.travel_dto import TravelDTO
 
-SYSTEM_PROMPT = """You are a travel requirement extraction assistant.
+_BASE_SYSTEM_PROMPT = """You are a travel requirement extraction assistant.
 
 Your job: extract travel details from the user's message and return ONLY a JSON object.
+
+Today's date is {today}. When converting dates to YYYY-MM-DD:
+- If the user mentions a month/day without a year (e.g. "April 10", "next Friday"), use {year} as the year.
+- If that resulting date is already in the past, use {next_year} instead.
+- NEVER guess or hallucinate a year — only use {year} or {next_year}.
 
 Extract any of these fields if mentioned:
 - destination (string)
@@ -38,8 +44,8 @@ Extract any of these fields if mentioned:
 - has_elderly (boolean)
 
 Return ONLY this JSON structure (no markdown, no explanation):
-{
-  "extracted": {
+{{
+  "extracted": {{
     "destination": null,
     "origin": null,
     "start_date": null,
@@ -60,10 +66,19 @@ Return ONLY this JSON structure (no markdown, no explanation):
     "rain_ok": null,
     "diet": null,
     "has_elderly": null
-  }
-}
+  }}
+}}
 
 Only include fields that were explicitly mentioned. Use null for anything not mentioned."""
+
+
+def _build_system_prompt() -> str:
+    today = date.today()
+    return _BASE_SYSTEM_PROMPT.format(
+        today=today.isoformat(),
+        year=today.year,
+        next_year=today.year + 1,
+    )
 
 
 class RequirementCheckerAgent:
@@ -75,7 +90,7 @@ class RequirementCheckerAgent:
         response = await self.client.messages.create(
             model="claude-haiku-4-5",
             max_tokens=1024,
-            system=SYSTEM_PROMPT,
+            system=_build_system_prompt(),
             messages=[{"role": "user", "content": user_message}],
         )
 

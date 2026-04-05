@@ -14,6 +14,7 @@ import asyncio
 import json
 import sys
 import os
+from datetime import date
 sys.path.insert(0, os.path.dirname(__file__))
 
 import anthropic
@@ -82,9 +83,37 @@ class TravelOrchestrator:
 
     # ── COLLECTING ────────────────────────────────────────────────────────────
 
+    def _validate_dates(self) -> str | None:
+        """Return an error message if any date is in the past, else None."""
+        today = date.today()
+        for field, label in [("start_date", "start date"), ("end_date", "end date")]:
+            val = getattr(self.dto, field, None)
+            if val:
+                try:
+                    d = date.fromisoformat(val)
+                    if d < today:
+                        return (
+                            f"The {label} **{val}** is in the past. "
+                            f"Today is {today}. Please provide a future date."
+                        )
+                except ValueError:
+                    pass
+        return None
+
     async def _handle_collecting(self, user_message: str) -> AsyncIterator[dict]:
         self.history.append({"role": "user", "content": user_message})
         self.dto = await self.req_checker.extract(user_message, self.dto)
+
+        # Reject past dates — clear them and ask again
+        date_error = self._validate_dates()
+        if date_error:
+            self.dto.start_date = None
+            self.dto.end_date = None
+            yield {"type": "dto_update", "data": self.dto.model_dump()}
+            yield {"type": "text", "content": date_error + " What dates did you have in mind?"}
+            self.history.append({"role": "assistant", "content": date_error + " What dates did you have in mind?"})
+            return
+
         yield {"type": "dto_update", "data": self.dto.model_dump()}
 
         if self.dto.is_complete():
