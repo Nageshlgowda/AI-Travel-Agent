@@ -1,9 +1,10 @@
 {
   "$schema": "https://schema.railpack.com",
+  "providers": ["python"],
   "steps": {
     "install": {
       "commands": [
-        "pip install -r requirements.txt"
+        "pip install -r $RAILPACK_APP_DIR/requirements.txt"
       ]
     }
   },
