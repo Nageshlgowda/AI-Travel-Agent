@@ -51,6 +51,14 @@ FRONTEND_DIR  = Path(__file__).parent.parent / "frontend"
 
 app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="assets")
 
+@app.get("/style.css")
+async def serve_css():
+    return FileResponse(str(FRONTEND_DIR / "style.css"), media_type="text/css")
+
+@app.get("/app.js")
+async def serve_js():
+    return FileResponse(str(FRONTEND_DIR / "app.js"), media_type="application/javascript")
+
 logger.info("AI Travel Agent starting up")
 logger.info("Frontend path: %s (exists=%s)", FRONTEND_PATH, FRONTEND_PATH.exists())
 
@@ -139,6 +147,8 @@ async def reset_session(session_id: str):
 async def health():
     logger.debug("Health check — active sessions: %d", len(sessions))
     return {"status": "ok", "sessions_active": len(sessions)}
+
+
 
 
 # ── WHATSAPP INTEGRATION ────────────────────────────────────────────────────
