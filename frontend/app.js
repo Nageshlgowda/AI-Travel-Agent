@@ -7,10 +7,40 @@ let currentBubbleText = '';
 
 // ── INIT ───────────────────────────────────────────────────────────────────
 async function init() {
-  const res = await fetch(`${API}/session`, { method: 'POST' });
-  const data = await res.json();
-  sessionId = data.session_id;
+  // Restore session from localStorage if available, otherwise create a new one
+  const stored = localStorage.getItem('tripzy_session_id');
+  if (stored) {
+    sessionId = stored;
+  } else {
+    await createNewSession();
+    return;
+  }
+  // Always show the welcome message on page load (DOM is cleared on refresh)
   addWelcomeMessage();
+}
+
+async function createNewSession() {
+  const MAX_RETRIES = 5;
+  const RETRY_DELAY_MS = 3000;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(`${API}/session`, { method: 'POST' });
+      const data = await res.json();
+      sessionId = data.session_id;
+      localStorage.setItem('tripzy_session_id', sessionId);
+      addWelcomeMessage();
+      return;
+    } catch (err) {
+      console.warn(`Init attempt ${attempt}/${MAX_RETRIES} failed:`, err);
+      if (attempt < MAX_RETRIES) {
+        addStatusMessage(`⏳ Connecting to server… (attempt ${attempt}/${MAX_RETRIES})`);
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+      } else {
+        addStatusMessage('⚠️ Could not connect to server. Please refresh the page.');
+      }
+    }
+  }
 }
 
 function addWelcomeMessage() {
@@ -34,6 +64,12 @@ async function sendMessage() {
   addUserMessage(message);
   setAgentStatus('requirements', 'running', 'Extracting info...');
 
+  // If session was lost (server restart), create a fresh one before sending
+  if (!sessionId) {
+    await createNewSession();
+    if (!sessionId) { finishStreaming(); return; }
+  }
+
   streaming = true;
   document.getElementById('send-btn').disabled = true;
 
@@ -41,11 +77,18 @@ async function sendMessage() {
   currentBubble = null;
   currentBubbleText = '';
 
-  const res = await fetch(`${API}/chat/${sessionId}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
-  });
+  let res;
+  try {
+    res = await fetch(`${API}/chat/${sessionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    });
+  } catch (err) {
+    addStatusMessage('⚠️ Connection lost. Please check your network and try again.');
+    finishStreaming();
+    return;
+  }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -324,6 +367,7 @@ async function resetSession() {
     await fetch(`${API}/session/${sessionId}`, { method: 'DELETE' }).catch(() => {});
   }
   sessionId = null;
+  localStorage.removeItem('tripzy_session_id');
   streaming = false;
   currentBubble = null;
   currentBubbleText = '';
@@ -346,7 +390,7 @@ async function resetSession() {
   const travelers = document.getElementById('f-travelers');
   if (travelers) { travelers.textContent = '1 adult'; travelers.className = 'value filled'; }
 
-  await init();
+  await createNewSession();
 }
 
 // ── MARKDOWN RENDERER (lightweight) ───────────────────────────────────────
