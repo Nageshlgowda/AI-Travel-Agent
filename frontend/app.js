@@ -552,5 +552,6 @@ function closeWAModalOnBg(e) {
   if (e.target === document.getElementById('wa-overlay')) closeWhatsAppModal();
 }
 
+
 // ── START ──────────────────────────────────────────────────────────────────
 init();
