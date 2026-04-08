@@ -1,362 +1,152 @@
-building an AI Travel Agent platform that works as a multi-agent system. A user interacts through a chat-based web UI, and an orchestrator coordinates multiple AI agents. First, a Requirement Checker extracts and structures travel details into a DTO. Then a Planning Agent creates a complete travel itinerary, including suggested flights, hotels, and activity plans. A Flight Booking Agent searches and ranks flight options using external APIs, while a Hotel Booking Agent does the same for accommodations based on budget and preferences. A Climate Agent analyzes weather conditions for the travel dates and provides recommendations. Finally, the orchestrator collects all outputs and asks for user confirmation before proceeding with booking flights and hotels, ensuring a smooth, intelligent, and interactive travel planning experience.
-AI travel agent chat
+# Tripzy — AI Travel Agent
 
-User (Flash Web UI)
-        ↓
-Agent Orchestrator (Brain)
-        ↓
- ├── Requirement Checker Agent (DTO builder)
- ├── Planning Agent (Itinerary creator)
- ├── Hotel Booking Agent (Search & ranking)
- └── Climate Agent (Weather analysis)
-
-
-
-1. What requirements should AI collect?
-A. Trip Basics (Mandatory)
-Destination (city/country)
-Start date
-End date
-Number of travelers (adult/kids)
-Origin location (optional but useful)
-
-B. Budget Details
-Total budget
-Budget per person (optional)
-Currency (USD, INR, etc.)
-
-C. Travel Purpose
-Leisure / Business / Adventure / Family / Honeymoon
-Trip priority:
-Relaxation
-Exploration
-Luxury
-Budget travel
-
-D. Accommodation Preferences
-Hotel type:
-Budget / Mid-range / Luxury
-Room type:
-Single / Double / Suite
-Preferences:
-Beach view
-City center
-Near airport    
-
-E. Activity Preferences
-Interests:
-Beaches
-Mountains
-Nightlife
-Shopping
-Historical places
-Food tours
-Activity intensity:
-Relaxed / Balanced / Packed schedule
-
-Climate Preferences
-Preferred weather:
-Sunny / Cold / Moderate
-Weather sensitivity:
-Can travel in rain? (yes/no)
-
-G. Constraints & Special Needs
-Visa required? (yes/no/unknown)
-Dietary restrictions (veg/non-veg/vegan)
-Mobility constraints
-Kids/elderly travelers
-Safety concerns
-
-FINAL IDEAL DTO
-
-{
-  "destination": "Goa",
-  "origin": "New York",
-  "start_date": "2026-05-10",
-  "end_date": "2026-05-15",
-  "travelers": {
-    "adult ": 2,
-    "kids": 2
-  }
-
-  "budget": {
-    "total": 1200,
-    "currency": "USD"
-  },
-
-  "purpose": "leisure",
-
-  "preferences": {
-    "hotel_type": "mid-range",
-    "room_type": "double",
-    "location_preference": "beachfront",
-
-    "interests": ["beach", "nightlife", "food"],
-    "activity_level": "balanced"
-  },
-
-  "climate": {
-    "preferred_weather": "sunny",
-    "rain_ok": true
-  },
-
-  "constraints": {
-    "visa_required": "unknown",
-    "diet": "non-veg",
-    "kids": false,
-    "elderly": false
-  }
-}
-
-2. Planning Agent
-
-You are an AI Travel Planning Agent inside a multi-agent system.
-
-Your responsibilities:
-1. Validate the input DTO (travel requirements)
-2. If required fields are missing, DO NOT create a plan
-   → Instead, return a "NEED_MORE_INFO" response with questions
-3. If DTO is complete, generate a full travel plan
+An AI-powered travel planning assistant that chats with you, searches flights and hotels, checks the weather, and generates a complete day-by-day itinerary — all through a simple chat interface.
 
 ---
 
-REQUIRED DTO FIELDS CHECK
+## How It Works
 
-Mandatory fields:
-- destination
-- start_date
-- end_date
-- travelers
-- budget
+You describe your trip in plain English. Behind the scenes, a team of specialized AI agents work together:
 
-Optional but useful:
-- preferences (hotel type, interests, activity level)
-- origin
-- climate preferences
+1. **Requirement Checker** — Reads your message and extracts trip details (destination, dates, budget, travelers) into a structured format. Asks follow-up questions if anything is missing.
+2. **Flight Agent** — Searches for flights matching your route and budget, ranks the best options.
+3. **Hotel Agent** — Searches for hotels matching your preferences and budget, ranks top picks.
+4. **Climate Agent** — Checks weather conditions for your destination and travel dates, gives packing/planning advice.
+5. **Planning Agent** — Combines everything into a full day-by-day itinerary with a budget breakdown.
+6. **Orchestrator** — Drives the conversation, manages state, and asks for your confirmation before booking.
 
----
-
-CASE 1: INCOMPLETE DTO
-
-If any mandatory field is missing:
-
-Return ONLY JSON:
-
-{
-  "status": "NEED_MORE_INFO",
-  "missing_fields": [],
-  "questions": [
-    "Ask user for missing details in simple travel-agent style questions"
-  ]
-}
-
-Rules:
-- Be concise
-- Do NOT generate itinerary
-- Only ask missing questions
+```
+You (Chat UI)
+     ↓
+Orchestrator
+     ↓
+Requirement Checker → extracts trip DTO
+     ↓
+Flight Agent + Hotel Agent + Climate Agent  (run in parallel)
+     ↓
+Planning Agent → generates full itinerary
+     ↓
+Confirm with user → Book flight + hotel → Show confirmation
+```
 
 ---
 
-CASE 2: COMPLETE DTO
+## Tech Stack
 
-If all mandatory fields exist:
-
-Create a complete travel plan including:
-
-1. Flight suggestion (logical, not real booking)
-2. Hotel recommendation summary
-3. Weather/climate summary
-4. Day-by-day itinerary
-5. Budget breakdown
-
----
- OUTPUT FORMAT (COMPLETE CASE ONLY)
-
-Return ONLY JSON:
-
-{
-  "status": "READY",
-  "flight_plan": {
-    "description": "",
-    "estimated_cost": "",
-    "notes": ""
-  },
-
-  "hotel_plan": {
-    "category": "",
-    "suggestions": [],
-    "estimated_cost_per_night": ""
-  },
-
-  "climate_plan": {
-    "summary": "",
-    "risk_level": "",
-    "advice": []
-  },
-
-  "itinerary": {
-    "day_1": [],
-    "day_2": [],
-    "day_3": []
-  },
-
-  "budget_breakdown": {
-    "flights": "",
-    "hotels": "",
-    "food": "",
-    "activities": "",
-    "total_estimate": ""
-  },
-
-  "summary": ""
-}
+| Layer     | Technology                                      |
+|-----------|-------------------------------------------------|
+| Frontend  | Vanilla HTML / CSS / JavaScript (no build step) |
+| Backend   | Python, FastAPI, Server-Sent Events (streaming) |
+| AI Models | Anthropic Claude (Haiku + Opus)                 |
+| Weather   | OpenWeatherMap API                              |
+| WhatsApp  | Twilio WhatsApp Sandbox                         |
+| Deploy    | Railway                                         |
 
 ---
 
-RULES
+## Environment Variables
 
-- Always respond in JSON only
-- Never include explanations
-- If missing data → ask questions only
-- If complete → produce full structured travel plan
-- Ensure realistic travel logic (budget-aware, date-aware)
+Create a `.env` file in the project root:
+
+```env
+# Required
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Required for weather data
+OPENWEATHER_API_KEY=your_key_here
+
+# Optional — only needed for WhatsApp integration
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+WHATSAPP_NUMBER=+14155238886
+```
 
 ---
 
-SYSTEM ROLE
+## Run Locally
 
-You are NOT booking real services.
-You are ONLY planning and simulating travel decisions for downstream agents.
+**1. Clone the repo and install dependencies**
 
-Your Planning Agent should:
+```bash
+pip install -r requirements.txt
+```
 
-🧠 Think + Decide
-🔧 Call tools (APIs)
-📦 Combine results into a plan
+**2. Set up environment variables**
 
-User
- ↓
-Requirement Checker (DTO)
- ↓
-Planning Agent (LLM Brain)
- ↓
-TOOL CALLS (APIs)
-   ├── Flight API
-   ├── Hotel API
-   ├── Weather API
- ↓
-Data returned
- ↓
-LLM composes final plan
- ↓
-Orchestrator returns response
- ↓
- confirm with user 
+```bash
+cp .env.example .env
+# Open .env and fill in your API keys
+```
 
- 3. Book Flight agent
+**3. Start the server**
 
- DTO → Validate input
-   ↓
-Call flight search API
-   ↓
-Filter by budget
-   ↓
-Rank flights
-   ↓
-Select top 3 options
-   ↓
-Return structured recommendation
+```bash
+cd backend
+uvicorn main:app --reload --port 8000
+```
 
+**4. Open the app**
 
-{
-  "status": "SUCCESS",
-  "selected_flights": [
-    {
-      "airline": "",
-      "price": "",
-      "duration": "",
-      "stops": "",
-      "departure_time": "",
-      "arrival_time": ""
-    }
-  ],
-  "best_choice": {
-    "reason": "",
-    "flight_index": 0
-  },
-  "notes": ""
-}
+Go to [http://localhost:8000](http://localhost:8000) in your browser.
 
-4. AI Booking Hotels Agent
-DTO Input
-   ↓
-Validate required fields
-   ↓
-Search hotels API
-   ↓
-Filter by budget
-   ↓
-Score by preferences
-   ↓
-Rank results
-   ↓
-Return top 3–5 hotels
+---
 
-5. after user confirms book both flight and hotel and return deatils to user 
+## Deploy on Railway
 
+**1. Push your code to GitHub**
 
+**2. Create a new Railway project**
+- Go to [railway.app](https://railway.app) → New Project → Deploy from GitHub repo
 
+**3. Add environment variables**
 
-  ---
-  Project Structure
+In your Railway project → Variables, add:
+```
+ANTHROPIC_API_KEY
+OPENWEATHER_API_KEY
+TWILIO_ACCOUNT_SID       (optional)
+TWILIO_AUTH_TOKEN        (optional)
+TWILIO_WHATSAPP_FROM     (optional)
+WHATSAPP_NUMBER          (optional)
+```
 
-  AI Travel Agent/
-  ├── requirements.txt
-  ├── .env.example
-  ├── backend/
-  │   ├── main.py              ← FastAPI + SSE streaming server
-  │   ├── orchestrator.py      ← State machine (COLLECTING → PLANNING → CONFIRMING → BOOKING)
-  │   ├── models/travel_dto.py ← Pydantic DTO with validation
-  │   ├── tools/
-  │   │   ├── flight_search.py ← Mock flight API (swap with Amadeus/Skyscanner)
-  │   │   ├── hotel_search.py  ← Mock hotel API (swap with Booking.com)
-  │   │   └── weather_api.py   ← Mock weather API (swap with OpenWeatherMap)
-  │   └── agents/
-  │       ├── requirement_checker.py ← claude-haiku-4-5, JSON extraction
-  │       ├── flight_agent.py        ← claude-haiku-4-5 + tool use loop
-  │       ├── hotel_agent.py         ← claude-haiku-4-5 + tool use loop
-  │       ├── climate_agent.py       ← claude-haiku-4-5 + tool use loop
-  │       └── planning_agent.py      ← claude-opus-4-6 + adaptive thinking, streaming
-  └── frontend/index.html      ← Self-contained chat UI (no build step)
+**4. Deploy**
 
-  How to Run
+Railway auto-detects the `railway.toml` config and runs:
+```bash
+cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+```
 
-  # 1. Install dependencies
-  pip install -r requirements.txt
+Your app will be live at the Railway-provided URL within a minute.
 
-  # 2. Set your API key
-  cp .env.example .env
-  # edit .env and add: ANTHROPIC_API_KEY=sk-ant-...
+---
 
-  # 3. Start the server
-  cd backend
-  uvicorn main:app --reload --port 8000
+## Project Structure
 
-  # 4. Open http://localhost:8000
-
-  Architecture
-
-  ┌─────────────────────┬─────────────────────────────────────┬─────────────────────────────────────────────────────────┐
-  │        Agent        │                Model                │                          Role                           │
-  ├─────────────────────┼─────────────────────────────────────┼─────────────────────────────────────────────────────────┤
-  │ Requirement Checker │ claude-haiku-4-5                    │ Extracts DTO fields from natural language               │
-  ├─────────────────────┼─────────────────────────────────────┼─────────────────────────────────────────────────────────┤
-  │ Flight Agent        │ claude-haiku-4-5 + tool use         │ Searches & ranks flights                                │
-  ├─────────────────────┼─────────────────────────────────────┼─────────────────────────────────────────────────────────┤
-  │ Hotel Agent         │ claude-haiku-4-5 + tool use         │ Searches & ranks hotels                                 │
-  ├─────────────────────┼─────────────────────────────────────┼─────────────────────────────────────────────────────────┤
-  │ Climate Agent       │ claude-haiku-4-5 + tool use         │ Analyzes weather & gives advice                         │
-  ├─────────────────────┼─────────────────────────────────────┼─────────────────────────────────────────────────────────┤
-  │ Planning Agent      │ claude-opus-4-6 + adaptive thinking │ Synthesizes everything into a full itinerary (streamed) │
-  ├─────────────────────┼─────────────────────────────────────┼─────────────────────────────────────────────────────────┤
-  │ Orchestrator        │ claude-opus-4-6                     │ Natural conversation driver & state machine             │
+```
+AI Travel Agent/
+├── requirements.txt
+├── railway.toml
+├── .env
+├── frontend/
+│   ├── index.html       — Chat UI (markup only)
+│   ├── style.css        — All styles
+│   ├── app.js           — All frontend logic
+│   └── assets/          — Logo and favicon
+└── backend/
+    ├── main.py              — FastAPI server, SSE streaming, static file routes
+    ├── orchestrator.py      — Conversation state machine
+    ├── models/
+    │   └── travel_dto.py    — Pydantic travel data model
+    ├── tools/
+    │   ├── flight_search.py — Flight search (mock / swap with Amadeus)
+    │   ├── hotel_search.py  — Hotel search (mock / swap with Booking.com)
+    │   └── weather_api.py   — Weather via OpenWeatherMap
+    └── agents/
+        ├── requirement_checker.py — Extracts trip details from conversation
+        ├── flight_agent.py        — Searches and ranks flights
+        ├── hotel_agent.py         — Searches and ranks hotels
+        ├── climate_agent.py       — Weather analysis and advice
+        └── planning_agent.py      — Generates full itinerary (streamed)
+```
