@@ -1,5 +1,7 @@
 // ── STATE ──────────────────────────────────────────────────────────────────
-const API = 'http://localhost:8000';
+const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? `http://${window.location.host}`
+  : window.location.origin;
 let sessionId = null;
 let streaming = false;
 let currentBubble = null;
